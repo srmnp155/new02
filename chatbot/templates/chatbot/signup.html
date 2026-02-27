@@ -1,0 +1,22 @@
+{% extends "chatbot/base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:560px;margin:0 auto;">
+    <h2>Create your account</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-row">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.errors %}
+                    <div style="color:#9f3919;font-size:0.9rem;">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <button class="button" type="submit">Sign Up</button>
+    </form>
+</section>
+{% endblock %}

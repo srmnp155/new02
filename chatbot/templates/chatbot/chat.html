@@ -1,0 +1,612 @@
+{% extends "chatbot/base.html" %}
+
+{% block title %}Chat{% endblock %}
+
+{% block extra_head %}
+<style>
+    #chat-shell {
+        padding: 0;
+        overflow: hidden;
+        border-radius: 16px;
+    }
+
+    #chat-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        height: min(78vh, 760px);
+        min-height: 560px;
+    }
+
+    #chat-sidebar {
+        border-right: 1px solid #d7deea;
+        padding: 16px;
+        background: linear-gradient(180deg, #f8fbff 0%, #f5f8fd 100%);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(16, 34, 59, 0.22) transparent;
+    }
+
+    #chat-main {
+        display: flex;
+        flex-direction: column;
+        padding: 16px;
+        background: #fcfdff;
+        overflow: hidden;
+    }
+
+    .sidebar-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        position: sticky;
+        top: 0;
+        background: #f8fbff;
+        padding-bottom: 6px;
+        z-index: 3;
+    }
+
+    .sidebar-title {
+        margin: 0;
+        font-size: 1.05rem;
+    }
+
+    #session-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 4px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(16, 34, 59, 0.22) transparent;
+    }
+
+    @media (max-width: 860px) {
+        #chat-layout {
+            grid-template-columns: 1fr !important;
+            height: auto;
+            min-height: 0;
+        }
+        #chat-sidebar {
+            border-right: none !important;
+            border-bottom: 1px solid #ced6e4;
+            max-height: 44vh;
+        }
+    }
+
+    .session-row {
+        display: grid;
+        grid-template-columns: 1fr 92px;
+        gap: 8px;
+        align-items: stretch;
+    }
+
+    .session-btn {
+        position: relative;
+        padding: 10px 34px 10px 10px !important;
+        text-align: left;
+        border: 1px solid #d2dbea;
+        background: #ffffff;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .session-btn:hover {
+        border-color: #b8c7e1;
+        box-shadow: 0 4px 12px rgba(18, 38, 58, 0.07);
+    }
+
+    .session-delete {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 20px;
+        height: 20px;
+        border: 1px solid #d4a6a6;
+        border-radius: 999px;
+        background: #fff4f4;
+        color: #8f2323;
+        font-size: 0.82rem;
+        line-height: 1;
+        display: none;
+        cursor: pointer;
+    }
+
+    .session-row:hover .session-delete {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .session-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .action-btn {
+        border: 1px solid #ced6e4;
+        border-radius: 8px;
+        background: #fff;
+        color: #10223b;
+        text-decoration: none;
+        font-size: 0.78rem;
+        font-weight: 700;
+        padding: 6px 8px;
+        text-align: center;
+        cursor: pointer;
+    }
+
+    .workspace-title {
+        margin: 0 0 4px;
+        font-size: 1.35rem;
+    }
+
+    #active-session-label {
+        margin: 0 0 12px;
+        color: #5c6b80;
+        font-size: 0.92rem;
+    }
+
+    #messages {
+        flex: 1;
+        border: 1px solid #ced6e4;
+        border-radius: 12px;
+        padding: 14px;
+        background: #fff;
+        overflow-y: auto;
+        overflow-x: hidden;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+    }
+
+    .msg {
+        margin-bottom: 10px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        white-space: pre-wrap;
+    }
+
+    .msg.user {
+        background: #eaf2ff;
+    }
+
+    .msg.bot {
+        background: #eef3fb;
+    }
+
+    #chat-form {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    #user-input {
+        flex: 1;
+        padding: 11px 12px;
+        border: 1px solid #ced6e4;
+        border-radius: 10px;
+        background: #fff;
+        height: 96px;
+        min-height: 96px;
+        max-height: 96px;
+        resize: none;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(16, 34, 59, 0.22) transparent;
+    }
+
+    #chat-sidebar::-webkit-scrollbar,
+    #session-list::-webkit-scrollbar,
+    #user-input::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    #chat-sidebar::-webkit-scrollbar-track,
+    #session-list::-webkit-scrollbar-track,
+    #user-input::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    #chat-sidebar::-webkit-scrollbar-thumb,
+    #session-list::-webkit-scrollbar-thumb,
+    #user-input::-webkit-scrollbar-thumb {
+        background: rgba(16, 34, 59, 0.22);
+        border-radius: 999px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    #chat-sidebar::-webkit-scrollbar-thumb:hover,
+    #session-list::-webkit-scrollbar-thumb:hover,
+    #user-input::-webkit-scrollbar-thumb:hover {
+        background: rgba(16, 34, 59, 0.34);
+        background-clip: content-box;
+    }
+
+    .action-btn[disabled],
+    .action-btn.disabled {
+        opacity: 0.45;
+        pointer-events: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="card" id="chat-shell">
+    <div id="chat-layout">
+        <aside id="chat-sidebar">
+            <div class="sidebar-top">
+                <h3 class="sidebar-title">Sessions</h3>
+                <button id="new-chat" class="button" type="button">New</button>
+            </div>
+            <div id="session-list">
+                {% for session in sessions %}
+                    <div class="session-row" data-row-id="{{ session.id }}">
+                        <button
+                            type="button"
+                            class="session-btn"
+                            data-id="{{ session.id }}"
+                        >
+                            <div style="font-weight:700;">{{ session.title|default:"Untitled chat" }}</div>
+                            <div style="font-size:0.85rem;color:#5c6b80;">{{ session.updated_at|date:"M d, Y H:i" }}</div>
+                            <span class="session-delete" data-delete-for="{{ session.id }}" title="Delete session">x</span>
+                        </button>
+                        <div class="session-actions">
+                            <a
+                                class="action-btn download-btn {% if not session.session_download_url %}disabled{% endif %}"
+                                data-download-for="{{ session.id }}"
+                                href="{% if session.session_download_url %}{{ session.session_download_url }}{% else %}#{% endif %}"
+                            >
+                                Download
+                            </a>
+                            <button class="action-btn github-btn" data-github-for="{{ session.id }}" type="button">GitHub</button>
+                            <button class="action-btn publish-soon" type="button">Publish</button>
+                            <a
+                                class="action-btn {% if not session.session_test_url %}disabled{% endif %}"
+                                data-test-for="{{ session.id }}"
+                                href="{% if session.session_test_url %}{{ session.session_test_url }}{% else %}#{% endif %}"
+                            >
+                                Test
+                            </a>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p style="margin:0;color:#5c6b80;">No sessions yet. Start chatting.</p>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <div id="chat-main">
+            <h2 class="workspace-title">Code Generator Workspace</h2>
+            <p id="active-session-label">Active session: New code task</p>
+
+            <div id="messages">
+                <div class="msg bot">Bot: Hi, I can chat normally and also generate runnable project files when you ask.</div>
+            </div>
+
+            <form id="chat-form">
+                {% csrf_token %}
+                <textarea id="user-input" placeholder="Ask anything or request code generation..." required></textarea>
+                <button class="button" type="submit">Send</button>
+            </form>
+        </div>
+    </div>
+</section>
+
+<script>
+    const existingSessions = [
+        {% for session in sessions %}
+        {
+            id: {{ session.id }},
+            title: "{{ session.title|default:'Untitled chat'|escapejs }}",
+            downloadUrl: "{{ session.session_download_url|default:''|escapejs }}",
+            testUrl: "{{ session.session_test_url|default:''|escapejs }}",
+            messages: [
+                {% for msg in session.messages.all %}
+                { role: "{{ msg.role }}", content: "{{ msg.content|escapejs }}" },
+                {% endfor %}
+            ],
+        },
+        {% endfor %}
+    ];
+
+    const chatForm = document.getElementById("chat-form");
+    const userInput = document.getElementById("user-input");
+    const messagesBox = document.getElementById("messages");
+    const sessionList = document.getElementById("session-list");
+    const sessionLabel = document.getElementById("active-session-label");
+    const newChatBtn = document.getElementById("new-chat");
+    let activeSessionId = null;
+
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(";").shift();
+        return "";
+    };
+
+    const addMessage = (role, text) => {
+        const line = document.createElement("div");
+        line.className = `msg ${role}`;
+        line.textContent = `${role === "user" ? "You" : "Bot"}: ${text}`;
+        messagesBox.appendChild(line);
+        messagesBox.scrollTop = messagesBox.scrollHeight;
+    };
+
+    const renderSessionMessages = (session) => {
+        messagesBox.innerHTML = "";
+        if (!session.messages.length) {
+            addMessage("bot", "New code task started.");
+            return;
+        }
+        session.messages.forEach((msg) => {
+            addMessage(msg.role === "assistant" ? "bot" : "user", msg.content);
+        });
+    };
+
+    const setActiveSession = (sessionId) => {
+        activeSessionId = sessionId;
+        const selected = existingSessions.find((s) => s.id === sessionId);
+        sessionLabel.textContent = selected
+            ? `Active session: ${selected.title || "Untitled chat"}`
+            : "Active session: New code task";
+        document.querySelectorAll(".session-btn").forEach((btn) => {
+            btn.style.outline = Number(btn.dataset.id) === sessionId ? "2px solid #cc4b22" : "none";
+        });
+        if (selected) {
+            renderSessionMessages(selected);
+        }
+    };
+
+    const setDownloadForSession = (sessionId, downloadUrl) => {
+        const anchor = sessionList.querySelector(`[data-download-for="${sessionId}"]`);
+        if (!anchor || !downloadUrl) return;
+        anchor.href = downloadUrl;
+        anchor.classList.remove("disabled");
+    };
+
+    const setTestForSession = (sessionId, testUrl) => {
+        const anchor = sessionList.querySelector(`[data-test-for="${sessionId}"]`);
+        if (!anchor || !testUrl) return;
+        anchor.href = testUrl;
+        anchor.classList.remove("disabled");
+    };
+
+    const appendSessionRow = (sessionId, title, downloadUrl = "", testUrl = "") => {
+        const row = document.createElement("div");
+        row.className = "session-row";
+        row.dataset.rowId = String(sessionId);
+        row.innerHTML = `
+            <button type="button" class="session-btn" data-id="${sessionId}">
+                <div style="font-weight:700;">${title}</div>
+                <div style="font-size:0.85rem;color:#5c6b80;">just now</div>
+                <span class="session-delete" data-delete-for="${sessionId}" title="Delete session">x</span>
+            </button>
+            <div class="session-actions">
+                <a class="action-btn download-btn ${downloadUrl ? "" : "disabled"}" data-download-for="${sessionId}" href="${downloadUrl || "#"}">Download</a>
+                <button class="action-btn github-btn" data-github-for="${sessionId}" type="button">GitHub</button>
+                <button class="action-btn publish-soon" type="button">Publish</button>
+                <a class="action-btn ${testUrl ? "" : "disabled"}" data-test-for="${sessionId}" href="${testUrl || "#"}">Test</a>
+            </div>
+        `;
+        row.querySelector(".session-btn").addEventListener("click", () => setActiveSession(sessionId));
+        attachGithubHandlers(row);
+        row.querySelectorAll(".publish-soon").forEach((btn) => {
+            btn.addEventListener("click", () => alert("Publish feature will be added in upcoming steps."));
+        });
+        sessionList.prepend(row);
+        attachDeleteHandlers(row);
+    };
+
+    const removeSessionFromState = (sessionId) => {
+        const index = existingSessions.findIndex((s) => s.id === sessionId);
+        if (index >= 0) {
+            existingSessions.splice(index, 1);
+        }
+    };
+
+    const showNewTaskState = () => {
+        activeSessionId = null;
+        sessionLabel.textContent = "Active session: New code task";
+        messagesBox.innerHTML = "";
+        addMessage("bot", "New code task started.");
+        document.querySelectorAll(".session-btn").forEach((btn) => {
+            btn.style.outline = "none";
+        });
+    };
+
+    const attachDeleteHandlers = (root = document) => {
+        root.querySelectorAll(".session-delete").forEach((btn) => {
+            if (btn.dataset.boundDelete === "1") return;
+            btn.dataset.boundDelete = "1";
+            btn.addEventListener("click", async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const sessionId = Number(btn.dataset.deleteFor);
+                if (!sessionId) return;
+
+                const ok = window.confirm("Delete this session and its virtual saved code?");
+                if (!ok) return;
+
+                try {
+                    const response = await fetch(`/session/${sessionId}/delete/`, {
+                        method: "POST",
+                        headers: { "X-CSRFToken": getCookie("csrftoken") },
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        alert(data.error || "Failed to delete session.");
+                        return;
+                    }
+
+                    removeSessionFromState(sessionId);
+                    const row = sessionList.querySelector(`.session-row[data-row-id="${sessionId}"]`);
+                    if (row) row.remove();
+
+                    if (activeSessionId === sessionId) {
+                        if (existingSessions.length > 0) {
+                            setActiveSession(existingSessions[0].id);
+                        } else {
+                            showNewTaskState();
+                        }
+                    }
+                } catch (err) {
+                    alert(`Delete failed: ${err}`);
+                }
+            });
+        });
+    };
+
+    const pushToGithub = async (sessionId, repoName = "", overwrite = false) => {
+        const response = await fetch(`/session/${sessionId}/github-push/`, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken"),
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ repo_name: repoName, overwrite }),
+        });
+        return await response.json();
+    };
+
+    const attachGithubHandlers = (root = document) => {
+        root.querySelectorAll(".github-btn").forEach((btn) => {
+            if (btn.dataset.boundGithub === "1") return;
+            btn.dataset.boundGithub = "1";
+            btn.addEventListener("click", async (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const sessionId = Number(btn.dataset.githubFor);
+                if (!sessionId) return;
+
+                const repoName = window.prompt("Enter GitHub repository name:");
+                if (!repoName || !repoName.trim()) return;
+
+                btn.disabled = true;
+                const oldText = btn.textContent;
+                btn.textContent = "Pushing...";
+
+                try {
+                    const data = await pushToGithub(sessionId, repoName.trim(), false);
+                    if (data.need_overwrite) {
+                        const ok = window.confirm(data.message || "Repository exists. Overwrite code?");
+                        if (!ok) return;
+                        const overwriteData = await pushToGithub(sessionId, repoName.trim(), true);
+                        if (!overwriteData.ok) {
+                            alert(overwriteData.error || "GitHub push failed.");
+                            return;
+                        }
+                        alert(`${overwriteData.message}\n${overwriteData.repo_url}`);
+                        addMessage("bot", `GitHub push successful: ${overwriteData.repo_url}`);
+                        return;
+                    }
+
+                    if (!data.ok) {
+                        alert(data.error || "GitHub push failed.");
+                        return;
+                    }
+                    alert(`${data.message}\n${data.repo_url}`);
+                    addMessage("bot", `GitHub push successful: ${data.repo_url}`);
+                } catch (err) {
+                    alert(`GitHub push error: ${err}`);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = oldText;
+                }
+            });
+        });
+    };
+
+    document.querySelectorAll(".session-btn").forEach((btn) => {
+        btn.addEventListener("click", () => setActiveSession(Number(btn.dataset.id)));
+    });
+    attachGithubHandlers(document);
+    document.querySelectorAll(".publish-soon").forEach((btn) => {
+        btn.addEventListener("click", () => alert("Publish feature will be added in upcoming steps."));
+    });
+    attachDeleteHandlers(document);
+
+    if (existingSessions.length > 0) {
+        setActiveSession(existingSessions[0].id);
+    }
+
+    newChatBtn.addEventListener("click", () => {
+        showNewTaskState();
+    });
+
+    userInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            chatForm.requestSubmit();
+        }
+    });
+
+    chatForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        addMessage("user", message);
+        userInput.value = "";
+
+        try {
+            const response = await fetch("/api/chat/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken"),
+                },
+                body: JSON.stringify({ message, session_id: activeSessionId }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                addMessage("bot", data.error || "Request failed.");
+                return;
+            }
+
+            addMessage("bot", data.reply || "No response.");
+            let current = existingSessions.find((s) => s.id === data.session_id);
+            if (!current) {
+                current = {
+                    id: data.session_id,
+                    title: data.session_title,
+                    downloadUrl: data.session_download_url || "",
+                    testUrl: data.session_test_url || "",
+                    messages: [],
+                };
+                existingSessions.unshift(current);
+                appendSessionRow(
+                    data.session_id,
+                    data.session_title,
+                    data.session_download_url || "",
+                    current.testUrl,
+                );
+            }
+
+            current.messages.push({ role: "user", content: message });
+            current.messages.push({ role: "assistant", content: data.reply || "" });
+            current.title = current.title || data.session_title;
+            current.downloadUrl = data.session_download_url || current.downloadUrl || "";
+            current.testUrl = data.session_test_url || current.testUrl || "";
+            setDownloadForSession(data.session_id, current.downloadUrl);
+            setTestForSession(data.session_id, current.testUrl);
+            setActiveSession(data.session_id);
+
+            if (data.trigger_download && current.downloadUrl) {
+                window.location.href = current.downloadUrl;
+            }
+        } catch (error) {
+            addMessage("bot", `Network error: ${error}`);
+        }
+    });
+</script>
+{% endblock %}

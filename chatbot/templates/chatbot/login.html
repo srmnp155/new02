@@ -1,0 +1,25 @@
+{% extends "chatbot/base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:560px;margin:0 auto;">
+    <h2>Login</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+            <div class="form-row">
+                {{ field.label_tag }}
+                {{ field }}
+                {% if field.errors %}
+                    <div style="color:#9f3919;font-size:0.9rem;">{{ field.errors|striptags }}</div>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <button class="button" type="submit">Login</button>
+    </form>
+    <p style="margin-top:12px;">
+        <a href="{% url 'password_reset' %}">Forgot password?</a>
+    </p>
+</section>
+{% endblock %}

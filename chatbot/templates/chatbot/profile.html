@@ -1,0 +1,76 @@
+{% extends "chatbot/base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width:900px;margin:0 auto;">
+    <h2 style="margin-top:0;">Profile Management</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            {% for field in form %}
+                <div class="form-row" style="margin-bottom:0;">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.help_text %}
+                        <div style="font-size:0.82rem;color:#5c6b80;margin-top:4px;">{{ field.help_text }}</div>
+                    {% endif %}
+                    {% if field.errors %}
+                        <div style="color:#9f3919;font-size:0.9rem;">{{ field.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="button" type="submit">Save Changes</button>
+            <a class="button" href="{% url 'password_reset' %}" style="text-decoration:none;">Reset Password</a>
+        </div>
+    </form>
+</section>
+
+<section class="card" style="max-width:900px;margin:14px auto 0;">
+    <h3 style="margin-top:0;">Saved Code</h3>
+    {% if generated_items %}
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="text-align:left;border-bottom:1px solid #d6deea;">
+                        <th style="padding:8px;">Project</th>
+                        <th style="padding:8px;">Session</th>
+                        <th style="padding:8px;">Files</th>
+                        <th style="padding:8px;">Created</th>
+                        <th style="padding:8px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in generated_items %}
+                        <tr style="border-bottom:1px solid #eef2f8;">
+                            <td style="padding:8px;">{{ item.project_name }}</td>
+                            <td style="padding:8px;">{{ item.session.title|default:"Untitled chat" }}</td>
+                            <td style="padding:8px;">{{ item.files|length }}</td>
+                            <td style="padding:8px;">{{ item.created_at|date:"M d, Y H:i" }}</td>
+                            <td style="padding:8px;display:flex;gap:6px;flex-wrap:wrap;">
+                                <a class="button" style="text-decoration:none;padding:7px 10px;" href="{% url 'download_project' item.id %}">Download</a>
+                                <a class="button" style="text-decoration:none;padding:7px 10px;" href="{% url 'session_test_ide' item.session.id %}">Test</a>
+                                <form method="post" action="{% url 'delete_saved_code' item.id %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button
+                                        class="button"
+                                        style="padding:7px 10px;"
+                                        type="submit"
+                                        onclick="return confirm('Delete this saved code?');"
+                                    >
+                                        Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="margin:0;color:#5c6b80;">No virtual items found yet. Generate a project from chat to see entries here.</p>
+    {% endif %}
+</section>
+{% endblock %}

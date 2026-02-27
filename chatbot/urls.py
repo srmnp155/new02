@@ -1,0 +1,57 @@
+from django.urls import path
+from django.contrib.auth import views as auth_views
+
+from .views import (
+    chat_api,
+    chat_page,
+    delete_saved_code,
+    delete_session,
+    download_project,
+    download_session_project,
+    home_page,
+    profile_page,
+    push_session_to_github,
+    run_session_project,
+    save_session_file,
+    session_test_ide,
+    signup_page,
+)
+
+
+urlpatterns = [
+    path("", home_page, name="home_page"),
+    path("signup/", signup_page, name="signup_page"),
+    path("login/", auth_views.LoginView.as_view(template_name="chatbot/login.html"), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(next_page="home_page"), name="logout"),
+    path("profile/", profile_page, name="profile_page"),
+    path(
+        "password-reset/",
+        auth_views.PasswordResetView.as_view(template_name="chatbot/password_reset_form.html"),
+        name="password_reset",
+    ),
+    path(
+        "password-reset/done/",
+        auth_views.PasswordResetDoneView.as_view(template_name="chatbot/password_reset_done.html"),
+        name="password_reset_done",
+    ),
+    path(
+        "reset/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(template_name="chatbot/password_reset_confirm.html"),
+        name="password_reset_confirm",
+    ),
+    path(
+        "reset/done/",
+        auth_views.PasswordResetCompleteView.as_view(template_name="chatbot/password_reset_complete.html"),
+        name="password_reset_complete",
+    ),
+    path("chat/", chat_page, name="chat_page"),
+    path("api/chat/", chat_api, name="chat_api"),
+    path("download/<int:project_id>/", download_project, name="download_project"),
+    path("download/session/<int:session_id>/", download_session_project, name="download_session_project"),
+    path("session/<int:session_id>/test/", session_test_ide, name="session_test_ide"),
+    path("session/<int:session_id>/run/", run_session_project, name="run_session_project"),
+    path("session/<int:session_id>/save-file/", save_session_file, name="save_session_file"),
+    path("session/<int:session_id>/delete/", delete_session, name="delete_session"),
+    path("session/<int:session_id>/github-push/", push_session_to_github, name="push_session_to_github"),
+    path("saved-code/<int:project_id>/delete/", delete_saved_code, name="delete_saved_code"),
+]

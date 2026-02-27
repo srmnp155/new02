@@ -1,0 +1,311 @@
+{% extends "chatbot/base.html" %}
+
+{% block title %}Session Test IDE{% endblock %}
+
+{% block extra_head %}
+<style>
+    .ide-grid {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 12px;
+    }
+
+    .file-list {
+        border: 1px solid #ced6e4;
+        border-radius: 10px;
+        background: #fff;
+        padding: 10px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .file-btn {
+        width: 100%;
+        border: 1px solid #ced6e4;
+        border-radius: 8px;
+        background: #fff;
+        text-align: left;
+        font-size: 0.85rem;
+        padding: 8px;
+        cursor: pointer;
+        margin-bottom: 6px;
+    }
+
+    .file-btn.active {
+        outline: 2px solid #cc4b22;
+    }
+
+    .code-panel {
+        border: 1px solid #ced6e4;
+        border-radius: 10px;
+        background: #0f1726;
+        color: #e8edf8;
+        padding: 12px;
+        overflow: auto;
+        max-height: 48vh;
+        white-space: pre;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 0.86rem;
+        width: 100%;
+        min-height: 260px;
+        resize: vertical;
+    }
+
+    .output-panel {
+        margin-top: 10px;
+        border: 1px solid #ced6e4;
+        border-radius: 10px;
+        background: #fff;
+        padding: 12px;
+        min-height: 130px;
+        white-space: pre-wrap;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 0.86rem;
+    }
+
+    .top-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    @media (max-width: 900px) {
+        .ide-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+    <h2 style="margin-top:0;">Sandbox IDE - Session {{ session.id }}</h2>
+    <p style="margin:0 0 8px;color:#5c6b80;">Virtual path: <code>{{ virtual_path }}</code></p>
+
+    <div class="top-actions">
+        <a class="button" href="{% url 'chat_page' %}" style="text-decoration:none;">Back</a>
+        {% if download_url %}
+            <a class="button" href="{{ download_url }}" style="text-decoration:none;">Download</a>
+        {% else %}
+            <button class="button" disabled>Download</button>
+        {% endif %}
+        <button class="button" type="button" id="github-btn">GitHub</button>
+        <button class="button" type="button" onclick="alert('Publish feature will be added in upcoming steps.')">Publish</button>
+        {% if project %}
+            <button class="button" type="button" id="run-btn">Run</button>
+        {% else %}
+            <button class="button" type="button" disabled>Run</button>
+        {% endif %}
+    </div>
+
+    {% if not project %}
+        <p style="color:#9f3919;margin:0;">No generated project found for this session.</p>
+    {% else %}
+        <div class="ide-grid">
+            <div class="file-list" id="file-list"></div>
+            <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;">
+                    <div id="selected-file" style="font-weight:700;">No file selected</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="save-status" style="font-size:0.85rem;color:#5c6b80;"></span>
+                        <button class="button" type="button" id="save-btn">Save</button>
+                    </div>
+                </div>
+                <textarea class="code-panel" id="code-panel"></textarea>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                    <textarea id="stdin-input" placeholder="Optional program input (for input())" style="flex:1;min-height:80px;border:1px solid #ced6e4;border-radius:10px;padding:10px;font-family:Consolas, 'Courier New', monospace;font-size:0.84rem;"></textarea>
+                    <div style="width:140px;">
+                        <label for="timeout-input" style="display:block;margin-bottom:6px;font-weight:700;">Timeout (sec)</label>
+                        <input id="timeout-input" type="number" min="1" max="60" value="30" style="width:100%;padding:8px;border:1px solid #ced6e4;border-radius:8px;">
+                    </div>
+                </div>
+                <div class="output-panel" id="output-panel">Run output will appear here.</div>
+            </div>
+        </div>
+    {% endif %}
+</section>
+
+{% if project %}
+<script>
+    const files = [
+        {% for item in files %}
+        {
+            path: "{{ item.path|escapejs }}",
+            content: "{{ item.content|escapejs }}",
+        },
+        {% endfor %}
+    ];
+
+    const fileList = document.getElementById("file-list");
+    const selectedFile = document.getElementById("selected-file");
+    const codePanel = document.getElementById("code-panel");
+    const outputPanel = document.getElementById("output-panel");
+    const runBtn = document.getElementById("run-btn");
+    const githubBtn = document.getElementById("github-btn");
+    const saveBtn = document.getElementById("save-btn");
+    const saveStatus = document.getElementById("save-status");
+    const stdinInput = document.getElementById("stdin-input");
+    const timeoutInput = document.getElementById("timeout-input");
+    let activePath = null;
+    let dirty = false;
+
+    const renderFile = (path) => {
+        const found = files.find((f) => f.path === path);
+        if (!found) return;
+        activePath = path;
+        selectedFile.textContent = found.path;
+        codePanel.value = found.content;
+        dirty = false;
+        saveStatus.textContent = "";
+        document.querySelectorAll(".file-btn").forEach((btn) => {
+            btn.classList.toggle("active", btn.dataset.path === path);
+        });
+    };
+
+    files.forEach((file) => {
+        const btn = document.createElement("button");
+        btn.className = "file-btn";
+        btn.type = "button";
+        btn.dataset.path = file.path;
+        btn.textContent = file.path;
+        btn.addEventListener("click", () => renderFile(file.path));
+        fileList.appendChild(btn);
+    });
+
+    if (files.length > 0) {
+        renderFile(files[0].path);
+    }
+
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(";").shift();
+        return "";
+    };
+
+    codePanel.addEventListener("input", () => {
+        dirty = true;
+        saveStatus.textContent = "Unsaved changes";
+    });
+
+    saveBtn.addEventListener("click", async () => {
+        if (!activePath) {
+            saveStatus.textContent = "No file selected";
+            return;
+        }
+        if (!dirty) {
+            saveStatus.textContent = "No changes to save";
+            return;
+        }
+
+        saveStatus.textContent = "Saving...";
+        try {
+            const response = await fetch("{% url 'save_session_file' session.id %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken"),
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    path: activePath,
+                    content: codePanel.value,
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                saveStatus.textContent = data.error || "Save failed";
+                return;
+            }
+
+            const current = files.find((f) => f.path === activePath);
+            if (current) {
+                current.content = codePanel.value;
+            }
+            dirty = false;
+            saveStatus.textContent = "Saved";
+        } catch (error) {
+            saveStatus.textContent = `Save error: ${error}`;
+        }
+    });
+
+    runBtn.addEventListener("click", async () => {
+        outputPanel.textContent = "Running...";
+        try {
+            const response = await fetch("{% url 'run_session_project' session.id %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken"),
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    stdin: stdinInput.value || "",
+                    timeout: Number(timeoutInput.value || 30),
+                    entry_path: activePath || "",
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                outputPanel.textContent = data.error || "Execution failed.";
+                return;
+            }
+            outputPanel.textContent =
+                `Language: ${data.language || "Unknown"}\nEntry: ${data.entry_file}\nReturn code: ${data.return_code}\n\n${data.output}`;
+        } catch (error) {
+            outputPanel.textContent = `Network error: ${error}`;
+        }
+    });
+
+    githubBtn.addEventListener("click", async () => {
+        const repoName = window.prompt("Enter GitHub repository name:");
+        if (!repoName || !repoName.trim()) return;
+
+        const oldText = githubBtn.textContent;
+        githubBtn.disabled = true;
+        githubBtn.textContent = "Pushing...";
+        try {
+            const pushRequest = async (overwrite = false) => {
+                const response = await fetch("{% url 'push_session_to_github' session.id %}", {
+                    method: "POST",
+                    headers: {
+                        "X-CSRFToken": getCookie("csrftoken"),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        repo_name: repoName.trim(),
+                        overwrite,
+                    }),
+                });
+                return await response.json();
+            };
+
+            const first = await pushRequest(false);
+            if (first.need_overwrite) {
+                const ok = window.confirm(first.message || "Repository exists. Overwrite code?");
+                if (!ok) return;
+                const second = await pushRequest(true);
+                if (!second.ok) {
+                    alert(second.error || "GitHub push failed.");
+                    return;
+                }
+                alert(`${second.message}\n${second.repo_url}`);
+                outputPanel.textContent = `GitHub push successful:\n${second.repo_url}`;
+                return;
+            }
+
+            if (!first.ok) {
+                alert(first.error || "GitHub push failed.");
+                return;
+            }
+            alert(`${first.message}\n${first.repo_url}`);
+            outputPanel.textContent = `GitHub push successful:\n${first.repo_url}`;
+        } catch (error) {
+            alert(`GitHub push error: ${error}`);
+        } finally {
+            githubBtn.disabled = false;
+            githubBtn.textContent = oldText;
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

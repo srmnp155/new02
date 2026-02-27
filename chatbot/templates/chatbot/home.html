@@ -1,0 +1,9 @@
+{% extends "chatbot/base.html" %}
+
+{% block title %}Home | SRM AI Code Generator{% endblock %}
+
+{% block content %}
+<section class="card" style="padding: 28px; display:flex; justify-content:center;">
+    <a class="button" href="{% url 'chat_page' %}" style="text-decoration:none;">Enter New Chat</a>
+</section>
+{% endblock %}
